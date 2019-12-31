@@ -1,0 +1,3 @@
+[submodule "putemg_features"]
+	path = putemg_features
+	url = https://github.com/biolab-put/putemg_features
