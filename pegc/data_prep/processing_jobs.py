@@ -7,10 +7,37 @@ from sklearn.preprocessing import StandardScaler
 
 from pegc.data_prep import constants
 from pegc.data_prep.utils import get_subject_and_experiment_type_from_filename
+import putemg_features
 
 
-def _process_single_hdf5(raw_filtered_data_dir: str, filename: str, processed_data_dir: str,
-                         window_size=constants.WINDOW_SIZE, window_stride=constants.WINDOW_STRIDE) -> None:
+def _denoise_filter_single_subject(src_hdf5_path: str, filtered_dara_dir_path: str) -> None:
+    basename = osp.basename(src_hdf5_path)
+    filename = osp.splitext(basename)[0]
+
+    # read raw putEMG data file and run filter
+    df: pd.DataFrame = pd.read_hdf(src_hdf5_path)
+    putemg_features.biolab_utilities.apply_filter(df)
+
+    # save filtered data to designated folder with prefix filtered_
+    df.to_hdf(osp.join(filtered_dara_dir_path, f'{filename}_filtered.hdf5'),
+              'data', format='table', mode='w', complevel=5)
+
+
+def _calculate_single_subject_features(denoised_hdf5_path: str, features_dir_path: str) -> None:
+    basename = os.path.basename(denoised_hdf5_path)
+    filename = os.path.splitext(basename)[0]
+
+    # for filtered data file run feature extraction, use xml with limited feature set
+    ft: pd.DataFrame = putemg_features.features_from_xml('./sandbox/features_shallow_learn.xml', denoised_hdf5_path)  # Move this to some constant/parmater
+
+    # save extracted features file to designated folder with features_filtered_ prefix
+    ft.to_hdf(osp.join(features_dir_path, f'{filename}_filtered_features.hdf5'),
+              'data', format='table', mode='w', complevel=5)
+# Note: currently we operate only on row signals, but perhaps it will also be handy later.
+
+
+def _process_single_filtered_hdf5(raw_filtered_data_dir: str, filename: str, processed_data_dir: str,
+                                  window_size=constants.WINDOW_SIZE, window_stride=constants.WINDOW_STRIDE) -> None:
     df = pd.read_hdf(osp.join(raw_filtered_data_dir, filename))
     features_columns = [col for col in df.columns if col.startswith('EMG_')]
     df = df[df['TRAJ_GT'] != -1]  # drop invalid gestures
