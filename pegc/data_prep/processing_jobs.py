@@ -6,7 +6,7 @@ import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
 from pegc.data_prep import constants
-from pegc.data_prep.utils import get_subject_and_experiment_type_from_filename
+from pegc.data_prep.utils import get_subject_and_experiment_type_from_filename, to_one_hot_encoding
 import putemg_features
 
 
@@ -64,6 +64,11 @@ def _process_single_filtered_hdf5(raw_filtered_data_dir: str, filename: str, pro
 
     X = np.array(X)
     y = np.array(y)
+
+    # Note/Important: the original dataset has a gap (no gestures with classes 4/5) which is addressed by simply
+    # subtracting 2 from classes above 5.
+    y[y >= 6] -= 2
+    y = to_one_hot_encoding(y, constants.NB_DATASET_CLASSES)
 
     # save results
     sub_id, exp_type = get_subject_and_experiment_type_from_filename(filename)
