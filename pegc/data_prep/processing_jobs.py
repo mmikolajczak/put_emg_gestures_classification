@@ -1,5 +1,6 @@
 import os
 import os.path as osp
+from typing import Tuple
 
 import numpy as np
 import pandas as pd
@@ -127,3 +128,21 @@ def _prepare_single_subject_splits(processed_data_dir: str, processed_data_split
         np.save(osp.join(cur_split_dst_dir_path, 'y_train.npy'), y_train)
         np.save(osp.join(cur_split_dst_dir_path, 'X_test.npy'), X_test)
         np.save(osp.join(cur_split_dst_dir_path, 'y_test.npy'), y_test)
+
+
+def _check_examination_splits_shapes_validity(examination_dir_path: str) -> Tuple[int, bool]:
+    examination_id = int(osp.basename(examination_dir_path))
+
+    shapes_valid = True
+    for i in range(3):
+        split_dir_path = osp.join(examination_dir_path, f'split_{i}')
+        X_train = np.load(osp.join(split_dir_path, 'X_train.npy'))
+        X_test = np.load(osp.join(split_dir_path, 'X_test.npy'))
+        y_train = np.load(osp.join(split_dir_path, 'y_train.npy'))
+        y_test = np.load(osp.join(split_dir_path, 'y_test.npy'))
+        if (len(X_train) != len(y_train) or len(X_test) != len(y_test) or
+                y_train.shape[1] != constants.NB_DATASET_CLASSES or y_test.shape[1] != constants.NB_DATASET_CLASSES):
+            shapes_valid = False
+            break
+
+    return examination_id, shapes_valid

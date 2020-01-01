@@ -1,5 +1,6 @@
 import os
 import os.path as osp
+import warnings
 
 import numpy as np
 from tqdm import tqdm
@@ -8,7 +9,7 @@ from joblib import Parallel, delayed
 
 from pegc.data_prep import constants
 from pegc.data_prep.processing_jobs import _prepare_single_subject_splits, _process_single_filtered_hdf5, \
-    _denoise_filter_single_subject
+    _denoise_filter_single_subject, _check_examination_splits_shapes_validity
 from pegc.data_prep.utils import get_subjects_ids, prepare_dir_tree
 
 
@@ -35,6 +36,16 @@ def prepare_data():
                                                                         constants.PROCESSED_DATA_SPLITS_DIR,
                                                                         subject_dir)
                                 for subject_dir in tqdm(os.listdir(constants.PROCESSED_DATA_DIR)))
+
+    # Optional/debug: check if in all generated splits lengths of X/y matches
+    validation_results = Parallel(n_jobs=nb_workers)(delayed(_check_examination_splits_shapes_validity)(
+        osp.join(constants.PROCESSED_DATA_SPLITS_DIR, subject_dir))
+        for subject_dir in tqdm(os.listdir(constants.PROCESSED_DATA_SPLITS_DIR)))
+    examinations_with_invalid_shapes = {exam_id for exam_id, shapes_are_valid in validation_results
+                                        if not shapes_are_valid}
+    if examinations_with_invalid_shapes:
+        warnings.warn(f'Shapes of data in splits of examinations with ids'
+                      f' {examinations_with_invalid_shapes} are incorrect!')
 
 
 if __name__ == '__main__':
