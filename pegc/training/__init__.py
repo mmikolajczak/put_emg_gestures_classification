@@ -7,7 +7,7 @@ from torchsummary import summary  # another extension, a'la keras model.summary 
 
 from pegc.models import Resnet1D
 from pegc import constants
-from pegc.training.utils import load_full_dataset
+from pegc.training.utils import load_full_dataset, shuffle, initialize_random_seeds
 
 
 def _validate(model: nn.Module, loss_fnc: Callable, X_val: np.array, y_val: np.array,
@@ -34,6 +34,7 @@ def train_loop(dataset_dir_path: str, architecture: str, force_cpu: bool = False
     architectures_lookup_table = {'resnet': Resnet1D}
     assert architecture in architectures_lookup_table, 'Specified model architecture unknown!'
     device = torch.device('cuda') if torch.cuda.is_available() and not force_cpu else torch.device('cpu')
+    initialize_random_seeds(constants.RANDOM_SEED)
 
     model = architectures_lookup_table[architecture](constants.DATASET_FEATURES_SHAPE[0],
                                                      base_feature_maps, constants.NB_DATASET_CLASSES).to(device)
@@ -49,9 +50,9 @@ def train_loop(dataset_dir_path: str, architecture: str, force_cpu: bool = False
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     loss_fnc = torch.nn.MultiLabelSoftMarginLoss(reduction='mean')
 
-    # TODO: add shuffle
     # TODO/maybe: some augmentation, mixup maybe?
     for ep in range(epochs):
+        X_train, y_train = shuffle(X_train, y_train)
         model.train()
         loss_sum = 0
         acc_sum = 0
