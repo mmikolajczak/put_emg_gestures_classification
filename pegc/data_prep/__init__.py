@@ -7,7 +7,7 @@ from tqdm import tqdm
 import psutil
 from joblib import Parallel, delayed
 
-from pegc.data_prep import constants
+from pegc import constants
 from pegc.data_prep.processing_jobs import _prepare_single_subject_splits, _process_single_filtered_hdf5, \
     _denoise_filter_single_subject, _check_examination_splits_shapes_validity
 from pegc.data_prep.utils import get_subjects_ids, prepare_dir_tree

@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
-from pegc.data_prep import constants
+from pegc import constants
 from pegc.data_prep.utils import get_subject_and_experiment_type_from_filename, to_one_hot_encoding
 import putemg_features
 

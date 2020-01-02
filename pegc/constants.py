@@ -1,7 +1,9 @@
 WINDOW_SIZE = 1024
 WINDOW_STRIDE = 512
 MEM_REQ_PER_PROCESS = 1.6e9  # It is rather much lower for second stage, might need adjustment for denoising.
+DATASET_FEATURES_SHAPE = (24, 1024)  # Stored in reverse on drive, but it is adjusted for pytorch during loading.
 NB_DATASET_CLASSES = 8
+
 
 ORIG_DATA_DIR = '/media/ja/CCTV_nagrania/mkm_archive/put_emg/data/orig_hdf5'
 RAW_FILTERED_DATA_DIR = '/media/ja/CCTV_nagrania/mkm_archive/put_emg/data/filtered_data/'
