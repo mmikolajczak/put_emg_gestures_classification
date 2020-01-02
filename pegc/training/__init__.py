@@ -1,4 +1,4 @@
-from typing import Callable, Tuple, Any, Iterable
+from typing import Callable, Tuple, Any, Dict
 
 import torch
 from torch import nn
@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 
 from pegc.models import Resnet1D
 from pegc import constants
-from pegc.training.utils import load_full_dataset, initialize_random_seeds
+from pegc.training.utils import load_full_dataset, initialize_random_seeds, mixup_batch
 from pegc.generators import PUTEEGGesturesDataset
 
 
@@ -29,8 +29,36 @@ def _validate(model: nn.Module, loss_fnc: Callable, val_gen: DataLoader, device:
     return loss_sum.item() / len(val_gen.dataset), acc_sum.item() / len(val_gen.dataset)
 
 
+def _epoch_train(model: nn.Module, train_gen: DataLoader, device: Any, optimizer: Any, loss_fnc: Callable,
+                 use_mixup: bool, alpha: float) -> Dict[str, float]:
+    model.train()
+    loss_sum = 0
+    correct_sum = 0
+
+    for X_batch, y_batch in train_gen:
+        if use_mixup:  # Problem: acc will stop being meaningful for training due to that (mse/mae instead?)
+            X_batch, y_batch = mixup_batch(X_batch, y_batch, alpha)
+
+        X_batch = X_batch.to(device)
+        y_batch = y_batch.to(device)
+
+        batch_y_pred = model(X_batch)
+        loss = loss_fnc(batch_y_pred, y_batch)
+
+        loss_sum += loss
+        correct_sum += (y_batch.argmax(dim=1) == batch_y_pred.argmax(dim=1)).sum()
+
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+    return {'loss': loss_sum.item() / len(train_gen.dataset),
+            'acc': correct_sum.item() / len(train_gen.dataset)}
+
+
 def train_loop(dataset_dir_path: str, architecture: str, force_cpu: bool = False, epochs: int = 100,
-               batch_size: int = 256, shuffle: bool = True, base_feature_maps: int = 64):
+               batch_size: int = 256, shuffle: bool = True, base_feature_maps: int = 64, use_mixup=True,
+               alpha: float = 1) -> None:
     architectures_lookup_table = {'resnet': Resnet1D}
     assert architecture in architectures_lookup_table, 'Specified model architecture unknown!'
     device = torch.device('cuda') if torch.cuda.is_available() and not force_cpu else torch.device('cpu')
@@ -54,28 +82,9 @@ def train_loop(dataset_dir_path: str, architecture: str, force_cpu: bool = False
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     loss_fnc = torch.nn.MultiLabelSoftMarginLoss(reduction='mean')
 
-    # TODO/maybe: some augmentation, mixup maybe?
     for ep in range(epochs):
-        model.train()
-        loss_sum = 0
-        acc_sum = 0
+        epoch_stats = _epoch_train(model, train_gen, device, optimizer, loss_fnc, use_mixup, alpha)
 
-        for X_batch, y_batch in train_gen:
-            X_batch = X_batch.to(device)
-            y_batch = y_batch.to(device)
-
-            batch_pred = model(X_batch)
-            loss = loss_fnc(batch_pred, y_batch)
-
-            loss_sum += loss
-            acc_sum += (y_batch.argmax(dim=1) == batch_pred.argmax(dim=1)).sum()
-
-            loss.backward()
-            optimizer.step()
-            optimizer.zero_grad()
-
-        train_loss = loss_sum.item() / len(train_gen.dataset)
-        train_acc = acc_sum.item() / len(train_gen.dataset)
         val_loss, val_acc = _validate(model, loss_fnc, val_gen, device)
-        print(f'Epoch {ep} train loss: {train_loss:.5f}, train acc: {train_acc:.5f}, '
+        print(f'Epoch {ep} train loss: {epoch_stats["loss"]:.5f}, train acc: {epoch_stats["acc"]:.5f}, '
               f'val loss: {val_loss:.5f}, val_acc: {val_acc:.5f}')

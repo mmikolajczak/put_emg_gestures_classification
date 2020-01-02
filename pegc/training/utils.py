@@ -1,6 +1,6 @@
 import os.path as osp
 from collections import namedtuple
-from typing import Sequence
+from typing import Tuple
 
 import numpy as np
 import torch
@@ -30,3 +30,15 @@ def initialize_random_seeds(seed: int) -> None:
     torch.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
+
+
+def mixup_batch(X: torch.Tensor, y: torch.Tensor, alpha: float) -> Tuple[torch.Tensor, torch.Tensor]:
+    # Note: type hints are for torch.Tensor but it is rather universal and will also work if input is just numpy.
+    lam = np.random.beta(alpha, alpha) if alpha > 0 else 1
+
+    batch_size = len(X)
+    index = torch.randperm(batch_size)
+
+    mixed_X = lam * X + (1 - lam) * X[index]
+    mixed_y = lam * y + (1 - lam) * y[index]
+    return mixed_X, mixed_y
