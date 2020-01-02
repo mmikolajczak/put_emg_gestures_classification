@@ -1,3 +1,6 @@
+from typing import Callable, Tuple, Any
+
+import numpy as np
 import torch
 from torch import nn
 from torchsummary import summary  # another extension, a'la keras model.summary funtion
@@ -5,6 +8,25 @@ from torchsummary import summary  # another extension, a'la keras model.summary 
 from pegc.models import Resnet1D
 from pegc import constants
 from pegc.training.utils import load_full_dataset
+
+
+def _validate(model: nn.Module, loss_fnc: Callable, X_val: np.array, y_val: np.array,
+              batch_size: int, device: Any) -> Tuple[float, float]:
+    model.eval()
+
+    loss_sum = 0
+    acc_sum = 0
+    with torch.no_grad():
+        for b in range(0, len(X_val), batch_size):
+            X_batch = torch.tensor(X_val[b: b + batch_size], dtype=torch.float32).to(device)
+            y_batch = torch.tensor(y_val[b: b + batch_size], dtype=torch.float32).to(device)
+            batch_pred = model(X_batch)
+            loss = loss_fnc(batch_pred, y_batch)
+
+            loss_sum += loss
+            acc_sum += (y_batch.argmax(dim=1) == batch_pred.argmax(dim=1)).sum()
+
+    return loss_sum.item() / len(X_val), acc_sum.item() / len(X_val)
 
 
 def train_loop(dataset_dir_path: str, architecture: str, force_cpu: bool = False, epochs: int = 100,
@@ -25,30 +47,31 @@ def train_loop(dataset_dir_path: str, architecture: str, force_cpu: bool = False
     # TODO: also make adjustable? Perhaps some config file would be more handy?
     lr = 1e-3
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    loss_criterion = torch.nn.MultiLabelSoftMarginLoss(reduction='mean')
+    loss_fnc = torch.nn.MultiLabelSoftMarginLoss(reduction='mean')
 
     # TODO: add shuffle
     # TODO/maybe: some augmentation, mixup maybe?
     for ep in range(epochs):
         model.train()
-
         loss_sum = 0
         acc_sum = 0
-        nb_batches = 0
 
         for b in range(0, len(X_train), batch_size):
             X_batch = torch.tensor(X_train[b: b + batch_size], dtype=torch.float32).to(device)
             y_batch = torch.tensor(y_train[b: b + batch_size], dtype=torch.float32).to(device)
 
             batch_pred = model(X_batch)
-            loss = loss_criterion(batch_pred, y_batch)
+            loss = loss_fnc(batch_pred, y_batch)
 
             loss_sum += loss
             acc_sum += (y_batch.argmax(dim=1) == batch_pred.argmax(dim=1)).sum()
-            nb_batches += 1
 
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
 
-        print(f'Epoch {ep} loss: {loss_sum.item() / len(X_train):.5f} acc: {acc_sum.item() / len(X_train):.5f}')
+        train_loss = loss_sum.item() / len(X_train)
+        train_acc = acc_sum.item() / len(X_train)
+        val_loss, val_acc = _validate(model, loss_fnc, X_test, y_test, batch_size, device)
+        print(f'Epoch {ep} train loss: {train_loss:.5f}, train acc: {train_acc:.5f}, '
+              f'val loss: {val_loss:.5f}, val_acc: {val_acc:.5f}')
