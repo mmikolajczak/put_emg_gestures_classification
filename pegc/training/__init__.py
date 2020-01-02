@@ -33,7 +33,6 @@ def _epoch_train(model: nn.Module, train_gen: DataLoader, device: Any, optimizer
                  use_mixup: bool, alpha: float) -> Dict[str, float]:
     model.train()
     loss_sum = 0
-    correct_sum = 0
 
     for X_batch, y_batch in train_gen:
         if use_mixup:  # Problem: acc will stop being meaningful for training due to that (mse/mae instead?)
@@ -46,14 +45,12 @@ def _epoch_train(model: nn.Module, train_gen: DataLoader, device: Any, optimizer
         loss = loss_fnc(batch_y_pred, y_batch)
 
         loss_sum += loss
-        correct_sum += (y_batch.argmax(dim=1) == batch_y_pred.argmax(dim=1)).sum()
 
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
-    return {'loss': loss_sum.item() / len(train_gen.dataset),
-            'acc': correct_sum.item() / len(train_gen.dataset)}
+    return {'loss': loss_sum.item() / len(train_gen.dataset)}
 
 
 def train_loop(dataset_dir_path: str, architecture: str, force_cpu: bool = False, epochs: int = 100,
@@ -86,5 +83,5 @@ def train_loop(dataset_dir_path: str, architecture: str, force_cpu: bool = False
         epoch_stats = _epoch_train(model, train_gen, device, optimizer, loss_fnc, use_mixup, alpha)
 
         val_loss, val_acc = _validate(model, loss_fnc, val_gen, device)
-        print(f'Epoch {ep} train loss: {epoch_stats["loss"]:.5f}, train acc: {epoch_stats["acc"]:.5f}, '
+        print(f'Epoch {ep} train loss: {epoch_stats["loss"]:.5f}, '
               f'val loss: {val_loss:.5f}, val_acc: {val_acc:.5f}')
