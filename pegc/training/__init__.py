@@ -13,6 +13,7 @@ from pegc.training.utils import load_full_dataset, initialize_random_seeds, mixu
     EarlyStopping, EarlyStoppingSignal, ModelCheckpoint
 from pegc.training.clr import CyclicLR
 from pegc.training.radam import RAdam
+from pegc.training.lookahead import Lookahead
 from pegc.generators import PUTEEGGesturesDataset
 
 
@@ -84,7 +85,8 @@ def train_loop(dataset_dir_path: str, architecture: str, results_dir_path: str, 
     # TODO: also all these make adjustable? Perhaps some config file would be more handy?
     base_lr = 1e-3
     max_lr = 1e-2  # TODO: check those base/max values, try to get them somewhat automatically
-    optimizer = RAdam(model.parameters(), lr=base_lr)
+    base_opt = RAdam(model.parameters(), lr=base_lr)
+    optimizer = Lookahead(base_opt, k=5, alpha=0.5)
     epochs_per_half_clr_cycle = 4
     clr = CyclicLR(optimizer, base_lr=base_lr, max_lr=max_lr, step_size_up=len(train_gen) * epochs_per_half_clr_cycle,
                    mode='triangular2', cycle_momentum=False)
