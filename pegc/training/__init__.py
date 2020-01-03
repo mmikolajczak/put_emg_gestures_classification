@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from pegc.models import Resnet1D
 from pegc import constants
 from pegc.training.utils import load_full_dataset, initialize_random_seeds, mixup_batch, AverageMeter, \
-    EarlyStopping, EarlyStoppingSignal
+    EarlyStopping, EarlyStoppingSignal, ModelCheckpoint
 from pegc.generators import PUTEEGGesturesDataset
 
 
@@ -77,13 +77,14 @@ def train_loop(dataset_dir_path: str, architecture: str, results_dir_path: str, 
     val_gen = DataLoader(val_dataset, batch_size=batch_size, shuffle=shuffle)  # Note: this data is quite simple, no additional workers will be required for loading/processing.
     # TODO: X_val, y_val other than from test set ; p
 
-    callbacks = None  # TODO
-    early_stopping = EarlyStopping(mode='min', patience=15)  # Quite a lot epochs, but the dataset is relatively small.
-
     # TODO: also make adjustable? Perhaps some config file would be more handy?
     lr = 1e-3
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     loss_fnc = torch.nn.MultiLabelSoftMarginLoss(reduction='mean')
+
+    callbacks = None  # TODO
+    early_stopping = EarlyStopping(mode='min', patience=15)  # Quite a lot epochs, but the dataset is relatively small.
+    model_checkpoint = ModelCheckpoint(results_dir_path, 'val_loss', {'model': model, 'optimizer': optimizer}, verbose=1, save_best_only=True)
 
     os.makedirs(results_dir_path, exist_ok=True)
     try:
@@ -94,6 +95,7 @@ def train_loop(dataset_dir_path: str, architecture: str, results_dir_path: str, 
             print(f'\nEpoch {ep} train loss: {epoch_stats["loss"]:.4f}, '
                   f'val loss: {val_loss:.5f}, val_acc: {val_acc:.4f}')
             early_stopping.step(val_loss)
+            model_checkpoint.on_epoch_end(ep, {'val_loss': val_loss})
     except EarlyStoppingSignal:
         print(f'Training early stopped due to lack of improvement from {early_stopping.patience} epochs!')
 

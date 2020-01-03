@@ -1,6 +1,7 @@
+import os
 import os.path as osp
 from collections import namedtuple
-from typing import Tuple
+from typing import Tuple, Dict, Any
 
 import numpy as np
 import torch
@@ -120,3 +121,39 @@ class EarlyStopping:
             if mode == 'max':
                 self.is_better = lambda a, best: a > best + (
                             best * min_delta / 100)
+
+
+class ModelCheckpoint:
+
+    def __init__(self, save_dir: str, monitor: str, checkpointed: Dict[str, Any],
+                 save_best_only: bool = False, verbose: int = 0):
+        if save_dir.startswith('~'):
+            save_dir = osp.expanduser(save_dir)
+        os.makedirs(save_dir, exist_ok=True)
+        self.save_dir = save_dir
+        self.save_best_only = save_best_only
+        self.verbose = verbose
+        self.monitor = monitor
+        self.checkpointed = checkpointed
+        # Mode = 'min' for best only supported – at least as of now, later can be adapted from the class above.
+        self.best_loss = float('inf')
+
+    def save_checkpoint(self, epoch: int, file: str):
+        to_save = {f'{k}_state_dict': v.state_dict() for k, v in self.checkpointed.items()}
+        to_save['epoch'] = epoch
+        torch.save(to_save, osp.join(self.save_dir, file))
+
+    def on_epoch_end(self, epoch: int, epoch_stats: dict):
+        filename = f'ep_{epoch}_checkpoint.tar'
+        if self.save_best_only:
+            current_loss = epoch_stats.get(self.monitor)
+            if current_loss < self.best_loss:
+                if self.verbose > 0:
+                    print(f'Epoch {epoch}: improved from {self.best_loss:.4f} to {current_loss:.4f} '
+                          f'saving model to {filename}')
+                self.best_loss = current_loss
+                self.save_checkpoint(epoch, filename)
+        else:
+            if self.verbose > 0:
+                print(f'Epoch {epoch}: saving model to ep_{epoch}_checkpoint.tar')
+            self.save_checkpoint(epoch, filename)
