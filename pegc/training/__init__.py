@@ -75,16 +75,19 @@ def train_loop(dataset_dir_path: str, architecture: str, results_dir_path: str, 
                                                      base_feature_maps, constants.NB_DATASET_CLASSES).to(device)
     summary(model, input_size=constants.DATASET_FEATURES_SHAPE)  # Without including batch.
 
-    data = load_full_dataset(dataset_dir_path)
+    data = load_full_dataset(dataset_dir_path, create_val_subset=True, val_size=0.15,
+                             random_seed=constants.RANDOM_SEED)
     train_dataset = PUTEEGGesturesDataset(data.X_train, data.y_train)
-    val_dataset = PUTEEGGesturesDataset(data.X_test, data.y_test)
+    val_dataset = PUTEEGGesturesDataset(data.X_val, data.y_val)
+    test_dataset = PUTEEGGesturesDataset(data.X_test, data.y_test)
     train_gen = DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle)
-    val_gen = DataLoader(val_dataset, batch_size=batch_size, shuffle=shuffle)  # Note: this data is quite simple, no additional workers will be required for loading/processing.
-    # TODO: X_val, y_val other than from test set ; p
+    val_gen = DataLoader(val_dataset, batch_size=batch_size, shuffle=shuffle)
+    test_gen = DataLoader(test_dataset, batch_size=batch_size, shuffle=shuffle)  # Note: this data is quite simple, no additional workers will be required for loading/processing.
+
 
     # TODO: also all these make adjustable? Perhaps some config file would be more handy?
     base_lr = 1e-3
-    max_lr = 1e-2  # TODO: check those base/max values, try to get them somewhat automatically
+    max_lr = 1e-2
     base_opt = RAdam(model.parameters(), lr=base_lr)
     optimizer = Lookahead(base_opt, k=5, alpha=0.5)
     epochs_per_half_clr_cycle = 4
@@ -113,6 +116,11 @@ def train_loop(dataset_dir_path: str, architecture: str, results_dir_path: str, 
                 cb.on_epoch_end(ep, epoch_stats)
     except EarlyStoppingSignal as e:
         print(e)
+
+    # Check results on final test/holdout set:
+    test_set_stats = _validate(model, loss_fnc, test_gen, device)
+    print(f'\nFinal evaluation on test set: '
+          f'test loss: {test_set_stats["val_loss"]:.5f}, test_acc: {test_set_stats["val_acc"]:.4f}')
 
     torch.save({'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
