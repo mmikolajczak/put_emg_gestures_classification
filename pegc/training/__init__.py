@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from pegc.models import Resnet1D
 from pegc import constants
 from pegc.training.utils import load_full_dataset, initialize_random_seeds, mixup_batch, AverageMeter, \
-    EarlyStopping, EarlyStoppingSignal, ModelCheckpoint
+    EarlyStopping, EarlyStoppingSignal, ModelCheckpoint, save_json
 from pegc.training.clr import CyclicLR
 from pegc.training.radam import RAdam
 from pegc.training.lookahead import Lookahead
@@ -102,6 +102,7 @@ def train_loop(dataset_dir_path: str, architecture: str, results_dir_path: str, 
         EarlyStopping(monitor='val_loss', mode='min', patience=15)  # Important: early stopping must be last on the list!
     ]                                                               # Quite a lot epochs, but the dataset is relatively small.
 
+    metrics = []
     os.makedirs(results_dir_path, exist_ok=True)
     try:
         for ep in range(1, epochs + 1):
@@ -112,6 +113,7 @@ def train_loop(dataset_dir_path: str, architecture: str, results_dir_path: str, 
             print(f'\nEpoch {ep} train loss: {epoch_stats["loss"]:.4f}, '
                   f'val loss: {epoch_stats["val_loss"]:.5f}, val_acc: {epoch_stats["val_acc"]:.4f}')
 
+            metrics.append(epoch_stats)
             for cb in callbacks:
                 cb.on_epoch_end(ep, epoch_stats)
     except EarlyStoppingSignal as e:
@@ -122,8 +124,9 @@ def train_loop(dataset_dir_path: str, architecture: str, results_dir_path: str, 
     print(f'\nFinal evaluation on test set: '
           f'test loss: {test_set_stats["val_loss"]:.5f}, test_acc: {test_set_stats["val_acc"]:.4f}')
 
+    # Save metrics/last network/optimizer state
+    save_json(osp.join(results_dir_path, 'test_set_stats.json'), test_set_stats)
+    save_json(osp.join(results_dir_path, 'training_losses_and_metrics.json'), {'epochs_stats': metrics})
     torch.save({'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
-                'last_val_loss': epoch_stats["val_loss"],
-                'last_val_acc': epoch_stats["val_acc"],
-                'epoch': ep}, osp.join(results_dir_path, 'final_checkpoint.tar'))
+                'epoch': ep}, osp.join(results_dir_path, 'last_epoch_checkpoint.tar'))

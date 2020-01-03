@@ -2,6 +2,7 @@ import os
 import os.path as osp
 from collections import namedtuple
 from typing import Tuple, Dict, Any
+import json
 
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -172,3 +173,14 @@ class ModelCheckpoint:
             if self.verbose > 0:
                 print(f'Epoch {epoch}: saving model to ep_{epoch}_checkpoint.tar')
             self.save_checkpoint(epoch, filename)
+
+
+def save_json(path: str, obj: Any, encoding: str = 'utf-8') -> None:
+    with open(path, 'w', encoding=encoding) as f:
+        json.dump(obj, f, ensure_ascii=False)
+
+
+def load_json(path: str, encoding: str = 'utf-8') -> Any:
+    with open(path, encoding=encoding) as f:
+        obj = json.load(f)
+    return obj
