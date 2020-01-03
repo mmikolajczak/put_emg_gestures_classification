@@ -1,4 +1,4 @@
-from typing import Callable, Tuple, Any, Dict
+from typing import Callable, Any, Dict, Iterable
 import os
 import os.path as osp
 
@@ -11,6 +11,7 @@ from pegc.models import Resnet1D
 from pegc import constants
 from pegc.training.utils import load_full_dataset, initialize_random_seeds, mixup_batch, AverageMeter, \
     EarlyStopping, EarlyStoppingSignal, ModelCheckpoint
+from pegc.training.clr import CyclicLR
 from pegc.generators import PUTEEGGesturesDataset
 
 
@@ -33,11 +34,13 @@ def _validate(model: nn.Module, loss_fnc: Callable, val_gen: DataLoader, device:
 
 
 def _epoch_train(model: nn.Module, train_gen: DataLoader, device: Any, optimizer: Any, loss_fnc: Callable,
-                 epoch_idx: int, use_mixup: bool, alpha: float) -> Dict[str, float]:
+                 epoch_idx: int, use_mixup: bool, alpha: float, schedulers: Iterable[Any]) -> Dict[str, float]:
     model.train()
     loss_tracker = AverageMeter()
 
     for batch_idx, (X_batch, y_batch) in enumerate(train_gen, start=1):
+        for sched in schedulers:
+            sched.step()
         if use_mixup:  # Problem: acc will stop being meaningful for training due to that (mse/mae instead?)
             X_batch, y_batch = mixup_batch(X_batch, y_batch, alpha)
 
@@ -77,9 +80,14 @@ def train_loop(dataset_dir_path: str, architecture: str, results_dir_path: str, 
     val_gen = DataLoader(val_dataset, batch_size=batch_size, shuffle=shuffle)  # Note: this data is quite simple, no additional workers will be required for loading/processing.
     # TODO: X_val, y_val other than from test set ; p
 
-    # TODO: also make adjustable? Perhaps some config file would be more handy?
-    lr = 1e-3
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    # TODO: also all these make adjustable? Perhaps some config file would be more handy?
+    base_lr = 1e-3
+    max_lr = 1e-2  # TODO: check those base/max values, try to get them somewhat automatically
+    optimizer = torch.optim.Adam(model.parameters(), lr=base_lr)
+    epochs_per_half_clr_cycle = 4
+    clr = CyclicLR(optimizer, base_lr=base_lr, max_lr=max_lr, step_size_up=len(train_gen) * epochs_per_half_clr_cycle,
+                   mode='triangular2', cycle_momentum=False)
+    schedulers = [clr]
     loss_fnc = torch.nn.MultiLabelSoftMarginLoss(reduction='mean')
 
     callbacks = [
@@ -91,7 +99,7 @@ def train_loop(dataset_dir_path: str, architecture: str, results_dir_path: str, 
     os.makedirs(results_dir_path, exist_ok=True)
     try:
         for ep in range(1, epochs + 1):
-            epoch_stats = _epoch_train(model, train_gen, device, optimizer, loss_fnc, ep, use_mixup, alpha)
+            epoch_stats = _epoch_train(model, train_gen, device, optimizer, loss_fnc, ep, use_mixup, alpha, schedulers)
             val_stats = _validate(model, loss_fnc, val_gen, device)
             epoch_stats.update(val_stats)
 
