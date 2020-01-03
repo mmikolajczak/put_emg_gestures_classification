@@ -14,7 +14,7 @@ from pegc.training.utils import load_full_dataset, initialize_random_seeds, mixu
 from pegc.generators import PUTEEGGesturesDataset
 
 
-def _validate(model: nn.Module, loss_fnc: Callable, val_gen: DataLoader, device: Any) -> Tuple[float, float]:
+def _validate(model: nn.Module, loss_fnc: Callable, val_gen: DataLoader, device: Any) -> Dict[str, float]:
     model.eval()
 
     loss_tracker = AverageMeter()
@@ -29,7 +29,7 @@ def _validate(model: nn.Module, loss_fnc: Callable, val_gen: DataLoader, device:
             loss_tracker.update(loss.item(), len(batch_pred))
             acc_tracker.update((y_batch.argmax(dim=1) == batch_pred.argmax(dim=1)).sum().item() / len(batch_pred))
 
-    return loss_tracker.avg, acc_tracker.avg
+    return {'val_loss': loss_tracker.avg, 'val_acc': acc_tracker.avg}
 
 
 def _epoch_train(model: nn.Module, train_gen: DataLoader, device: Any, optimizer: Any, loss_fnc: Callable,
@@ -82,25 +82,29 @@ def train_loop(dataset_dir_path: str, architecture: str, results_dir_path: str, 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     loss_fnc = torch.nn.MultiLabelSoftMarginLoss(reduction='mean')
 
-    callbacks = None  # TODO
-    early_stopping = EarlyStopping(mode='min', patience=15)  # Quite a lot epochs, but the dataset is relatively small.
-    model_checkpoint = ModelCheckpoint(results_dir_path, 'val_loss', {'model': model, 'optimizer': optimizer}, verbose=1, save_best_only=True)
+    callbacks = [
+        ModelCheckpoint(results_dir_path, 'val_loss', {'model': model, 'optimizer': optimizer},
+                        verbose=1, save_best_only=True),
+        EarlyStopping(monitor='val_loss', mode='min', patience=15)  # Important: early stopping must be last on the list!
+    ]                                                               # Quite a lot epochs, but the dataset is relatively small.
 
     os.makedirs(results_dir_path, exist_ok=True)
     try:
         for ep in range(1, epochs + 1):
             epoch_stats = _epoch_train(model, train_gen, device, optimizer, loss_fnc, ep, use_mixup, alpha)
+            val_stats = _validate(model, loss_fnc, val_gen, device)
+            epoch_stats.update(val_stats)
 
-            val_loss, val_acc = _validate(model, loss_fnc, val_gen, device)
             print(f'\nEpoch {ep} train loss: {epoch_stats["loss"]:.4f}, '
-                  f'val loss: {val_loss:.5f}, val_acc: {val_acc:.4f}')
-            early_stopping.step(val_loss)
-            model_checkpoint.on_epoch_end(ep, {'val_loss': val_loss})
-    except EarlyStoppingSignal:
-        print(f'Training early stopped due to lack of improvement from {early_stopping.patience} epochs!')
+                  f'val loss: {epoch_stats["val_loss"]:.5f}, val_acc: {epoch_stats["val_acc"]:.4f}')
+
+            for cb in callbacks:
+                cb.on_epoch_end(ep, epoch_stats)
+    except EarlyStoppingSignal as e:
+        print(e)
 
     torch.save({'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
-                'last_val_loss': val_loss,
-                'last_val_acc': val_acc,
+                'last_val_loss': epoch_stats["val_loss"],
+                'last_val_acc': epoch_stats["val_acc"],
                 'epoch': ep}, osp.join(results_dir_path, 'final_checkpoint.tar'))

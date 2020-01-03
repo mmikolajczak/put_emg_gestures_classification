@@ -71,13 +71,17 @@ class AverageMeter:
 
 
 class EarlyStoppingSignal(RuntimeError):
-    pass
+
+    def __init__(self, message):
+        super(EarlyStoppingSignal, self).__init__(message)
 
 
 class EarlyStopping:
 
-    def __init__(self, mode: str = 'min', min_delta: float = 0, patience: int = 10, percentage: bool = False):
+    def __init__(self, monitor: str, mode: str = 'min', min_delta: float = 0, patience: int = 10,
+                 percentage: bool = False):
         assert mode in ('min', 'max')
+        self.monitor = monitor
         self.mode = mode
         self.min_delta = min_delta
         self.patience = patience
@@ -90,21 +94,22 @@ class EarlyStopping:
             self.is_better = lambda a, b: True
             self.step = lambda a: False
 
-    def step(self, metrics):
+    def on_epoch_end(self, epoch: int, epoch_stats: dict):
+        metric = epoch_stats.get(self.monitor)
         if self.best is None:
-            self.best = metrics
+            self.best = metric
 
-        if np.isnan(metrics):
-            raise EarlyStoppingSignal()
+        if np.isnan(metric):
+            raise EarlyStoppingSignal(f'Training early stopped due to lack of improvement from {self.patience} epochs!')
 
-        if self.is_better(metrics, self.best):
+        if self.is_better(metric, self.best):
             self.num_bad_epochs = 0
-            self.best = metrics
+            self.best = metric
         else:
             self.num_bad_epochs += 1
 
         if self.num_bad_epochs >= self.patience:
-            raise EarlyStoppingSignal()
+            raise EarlyStoppingSignal(f'Training early stopped due to lack of improvement from {self.patience} epochs!')
 
     def _init_is_better(self, mode, min_delta, percentage):
         if mode not in {'min', 'max'}:
