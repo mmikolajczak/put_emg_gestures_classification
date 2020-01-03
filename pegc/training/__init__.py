@@ -1,4 +1,6 @@
 from typing import Callable, Tuple, Any, Dict
+import os
+import os.path as osp
 
 import torch
 from torch import nn
@@ -53,9 +55,9 @@ def _epoch_train(model: nn.Module, train_gen: DataLoader, device: Any, optimizer
     return {'loss': loss_sum.item() / len(train_gen.dataset)}
 
 
-def train_loop(dataset_dir_path: str, architecture: str, force_cpu: bool = False, epochs: int = 100,
-               batch_size: int = 256, shuffle: bool = True, base_feature_maps: int = 64, use_mixup=True,
-               alpha: float = 1) -> None:
+def train_loop(dataset_dir_path: str, architecture: str, results_dir_path: str, force_cpu: bool = False,
+               epochs: int = 100, batch_size: int = 256, shuffle: bool = True, base_feature_maps: int = 64,
+               use_mixup=True, alpha: float = 1) -> None:
     architectures_lookup_table = {'resnet': Resnet1D}
     assert architecture in architectures_lookup_table, 'Specified model architecture unknown!'
     device = torch.device('cuda') if torch.cuda.is_available() and not force_cpu else torch.device('cpu')
@@ -79,9 +81,15 @@ def train_loop(dataset_dir_path: str, architecture: str, force_cpu: bool = False
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     loss_fnc = torch.nn.MultiLabelSoftMarginLoss(reduction='mean')
 
-    for ep in range(epochs):
+    os.makedirs(results_dir_path, exist_ok=True)
+    for ep in range(1, epochs + 1):
         epoch_stats = _epoch_train(model, train_gen, device, optimizer, loss_fnc, use_mixup, alpha)
 
         val_loss, val_acc = _validate(model, loss_fnc, val_gen, device)
         print(f'Epoch {ep} train loss: {epoch_stats["loss"]:.5f}, '
               f'val loss: {val_loss:.5f}, val_acc: {val_acc:.5f}')
+    torch.save({'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'last_val_loss': val_loss,
+                'last_val_acc': val_acc,
+                'epoch': ep}, osp.join(results_dir_path, 'final_checkpoint.tar'))
