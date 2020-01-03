@@ -9,7 +9,8 @@ from torch.utils.data import DataLoader
 
 from pegc.models import Resnet1D
 from pegc import constants
-from pegc.training.utils import load_full_dataset, initialize_random_seeds, mixup_batch, AverageMeter
+from pegc.training.utils import load_full_dataset, initialize_random_seeds, mixup_batch, AverageMeter, \
+    EarlyStopping, EarlyStoppingSignal
 from pegc.generators import PUTEEGGesturesDataset
 
 
@@ -77,20 +78,25 @@ def train_loop(dataset_dir_path: str, architecture: str, results_dir_path: str, 
     # TODO: X_val, y_val other than from test set ; p
 
     callbacks = None  # TODO
+    early_stopping = EarlyStopping(mode='min', patience=15)  # Quite a lot epochs, but the dataset is relatively small.
 
     # TODO: also make adjustable? Perhaps some config file would be more handy?
     lr = 1e-3
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     loss_fnc = torch.nn.MultiLabelSoftMarginLoss(reduction='mean')
 
-    epochs = 10
     os.makedirs(results_dir_path, exist_ok=True)
-    for ep in range(1, epochs + 1):
-        epoch_stats = _epoch_train(model, train_gen, device, optimizer, loss_fnc, ep, use_mixup, alpha)
+    try:
+        for ep in range(1, epochs + 1):
+            epoch_stats = _epoch_train(model, train_gen, device, optimizer, loss_fnc, ep, use_mixup, alpha)
 
-        val_loss, val_acc = _validate(model, loss_fnc, val_gen, device)
-        print(f'\nEpoch {ep} train loss: {epoch_stats["loss"]:.4f}, '
-              f'val loss: {val_loss:.5f}, val_acc: {val_acc:.4f}')
+            val_loss, val_acc = _validate(model, loss_fnc, val_gen, device)
+            print(f'\nEpoch {ep} train loss: {epoch_stats["loss"]:.4f}, '
+                  f'val loss: {val_loss:.5f}, val_acc: {val_acc:.4f}')
+            early_stopping.step(val_loss)
+    except EarlyStoppingSignal:
+        print(f'Training early stopped due to lack of improvement from {early_stopping.patience} epochs!')
+
     torch.save({'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'last_val_loss': val_loss,
