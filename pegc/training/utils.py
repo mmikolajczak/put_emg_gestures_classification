@@ -42,3 +42,28 @@ def mixup_batch(X: torch.Tensor, y: torch.Tensor, alpha: float) -> Tuple[torch.T
     mixed_X = lam * X + (1 - lam) * X[index]
     mixed_y = lam * y + (1 - lam) * y[index]
     return mixed_X, mixed_y
+
+
+class AverageMeter:
+    """Computes and stores the average and current value"""
+
+    def __init__(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+        # self.reset() would be sufficient but since lint is complaining about definitions outside of init... ; p
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, value: float, samples: int = 1):
+        self.val = value
+        self.sum += value * samples
+        self.count += samples
+        self.avg = self.sum / self.count
+
+    # Note/TODO: add smoothing perhaps.
