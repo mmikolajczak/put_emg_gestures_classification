@@ -63,19 +63,25 @@ def _epoch_train(model: nn.Module, train_gen: DataLoader, device: Any, optimizer
     return {'loss': loss_tracker.avg}
 
 
-def train_loop(dataset_dir_path: str, architecture: str, results_dir_path: str, force_cpu: bool = False,
+def train_loop(dataset_dir_path: str, results_dir_path: str, architecture: str, force_cpu: bool = False,
                epochs: int = 100, batch_size: int = 256, shuffle: bool = True, base_feature_maps: int = 64,
-               use_mixup=True, alpha: float = 1) -> None:
+               use_mixup=True, alpha: float = 1, val_split_size: float = 0.15, base_lr: float = 1e-3,
+               max_lr: float = 1e-2, use_early_stopping: bool = True, early_stopping_patience: int = 15,
+               optimizer: str = 'radam', use_lookahead: bool = True) -> None:
     architectures_lookup_table = {'resnet': Resnet1D}
+    optimizers_lookup_table = {'adam': torch.optim.Adam, 'radam': RAdam}
     assert architecture in architectures_lookup_table, 'Specified model architecture unknown!'
+    assert optimizer in optimizers_lookup_table, 'Specified optimizer unknown!'
     device = torch.device('cuda') if torch.cuda.is_available() and not force_cpu else torch.device('cpu')
     initialize_random_seeds(constants.RANDOM_SEED)
 
+    # Create specified model.
     model = architectures_lookup_table[architecture](constants.DATASET_FEATURES_SHAPE[0],
                                                      base_feature_maps, constants.NB_DATASET_CLASSES).to(device)
-    summary(model, input_size=constants.DATASET_FEATURES_SHAPE)  # Without including batch.
+    summary(model, input_size=constants.DATASET_FEATURES_SHAPE)  # Shape without including batch.
 
-    data = load_full_dataset(dataset_dir_path, create_val_subset=True, val_size=0.15,
+    # Load train/test data (includes validation set preparation).
+    data = load_full_dataset(dataset_dir_path, create_val_subset=True, val_size=val_split_size,
                              random_seed=constants.RANDOM_SEED)
     train_dataset = PUTEEGGesturesDataset(data.X_train, data.y_train)
     val_dataset = PUTEEGGesturesDataset(data.X_val, data.y_val)
@@ -84,26 +90,30 @@ def train_loop(dataset_dir_path: str, architecture: str, results_dir_path: str, 
     val_gen = DataLoader(val_dataset, batch_size=batch_size, shuffle=shuffle)
     test_gen = DataLoader(test_dataset, batch_size=batch_size, shuffle=shuffle)  # Note: this data is quite simple, no additional workers will be required for loading/processing.
 
+    # Optimizer setup.
+    base_opt = optimizers_lookup_table[optimizer](model.parameters(), lr=base_lr)
+    optimizer = Lookahead(base_opt, k=5, alpha=0.5) if use_lookahead else base_opt
 
-    # TODO: also all these make adjustable? Perhaps some config file would be more handy?
-    base_lr = 1e-3
-    max_lr = 1e-2
-    base_opt = RAdam(model.parameters(), lr=base_lr)
-    optimizer = Lookahead(base_opt, k=5, alpha=0.5)
+    # LR schedulers setup.
     epochs_per_half_clr_cycle = 4
     clr = CyclicLR(optimizer, base_lr=base_lr, max_lr=max_lr, step_size_up=len(train_gen) * epochs_per_half_clr_cycle,
                    mode='triangular2', cycle_momentum=False)
     schedulers = [clr]
-    loss_fnc = torch.nn.MultiLabelSoftMarginLoss(reduction='mean')
 
+    # Callbacks setup.
     callbacks = [
         ModelCheckpoint(results_dir_path, 'val_loss', {'model': model, 'optimizer': optimizer},
                         verbose=1, save_best_only=True),
-        EarlyStopping(monitor='val_loss', mode='min', patience=15)  # Important: early stopping must be last on the list!
-    ]                                                               # Quite a lot epochs, but the dataset is relatively small.
+    ]
+    if use_early_stopping:
+        callbacks.append(EarlyStopping(monitor='val_loss', mode='min',
+                                       patience=early_stopping_patience))  # Important: early stopping must be last on the list!
 
+    # Training itself.
+    loss_fnc = torch.nn.MultiLabelSoftMarginLoss(reduction='mean')
     metrics = []
     os.makedirs(results_dir_path, exist_ok=True)
+
     try:
         for ep in range(1, epochs + 1):
             epoch_stats = _epoch_train(model, train_gen, device, optimizer, loss_fnc, ep, use_mixup, alpha, schedulers)
