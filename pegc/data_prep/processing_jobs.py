@@ -38,7 +38,7 @@ def _calculate_single_subject_features(denoised_hdf5_path: str, features_dir_pat
 
 
 def _process_single_filtered_hdf5(raw_filtered_data_dir: str, filename: str, processed_data_dir: str,
-                                  window_size=constants.WINDOW_SIZE, window_stride=constants.WINDOW_STRIDE) -> None:
+                                  window_size: int, window_stride: int) -> None:
     df = pd.read_hdf(osp.join(raw_filtered_data_dir, filename))
     features_columns = [col for col in df.columns if col.startswith('EMG_')]
     df = df[df['TRAJ_GT'] != -1]  # drop invalid gestures

@@ -22,7 +22,7 @@ from pegc.data_prep.utils import get_subjects_ids, prepare_dir_tree
 @click.option('--window_size', default=1024, type=int)
 @click.option('--window_stride', default=512, type=int)
 def prepare_data(orig_data_dir_path: str, raw_filtered_data_path: str, processed_data_dir: str,
-                 processed_data_splits_dir: str) -> None:
+                 processed_data_splits_dir: str, window_size: int = 1024, window_stride: int = 512) -> None:
     nb_workers = max(int(np.floor(psutil.virtual_memory()[1] / constants.MEM_REQ_PER_PROCESS)), 1)
 
     # Denoise/filter data
@@ -34,9 +34,8 @@ def prepare_data(orig_data_dir_path: str, raw_filtered_data_path: str, processed
     # Group and preprocess raw (but filtered/denoised) signals for each subject.
     put_emg_subjects_ids = get_subjects_ids(raw_filtered_data_path)
     prepare_dir_tree(processed_data_dir, put_emg_subjects_ids)
-    Parallel(n_jobs=nb_workers)(delayed(_process_single_filtered_hdf5)(raw_filtered_data_path,
-                                                                       filename,
-                                                                       processed_data_dir)
+    Parallel(n_jobs=nb_workers)(delayed(_process_single_filtered_hdf5)(raw_filtered_data_path, filename,
+                                                                       processed_data_dir, window_size, window_stride)
                                 for filename in tqdm(os.listdir(raw_filtered_data_path)))
 
     # Create inter-subject train/test splits (according to the original dataset authors methodology).
