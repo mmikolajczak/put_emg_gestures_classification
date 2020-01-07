@@ -1,14 +1,16 @@
 import os
 import os.path as osp
 
+import click
+
 from pegc.training import train_loop
 from pegc.training.utils import load_json
 
-EXAMINATIONS_PREPARED_TRAIN_TEST_SPLITS_DIR_PATH = '/media/ja/CCTV_nagrania/mkm_archive/put_emg/data/raw_filtered_data_subjects_split_window_size_1024_window_stride_512_cv_splits_standarized'
-RESULTS_OUTPUT_DIR_PATH = '../sandbox/learn_per_examination_splits_output'
-CONFIG_TEMPLATE_PATH = './config_template.json'
 
-
+@click.command()
+@click.argument('examinations_prepared_train_test_splits_dir_path', type=click.Path(file_okay=False, exists=True))
+@click.argument('results_output_dir_path', type=click.Path(file_okay=False))
+@click.argument('training_config_file_path', type=click.Path(dir_okay=False, exists=True))
 def run_experiment(examinations_prepared_train_test_splits_dir_path: str,
                    results_output_dir_path: str, training_config_file_path: str) -> None:
     # Note: training config file is a dict in json format, while it's content should be arguments which will override
@@ -30,10 +32,9 @@ def run_experiment(examinations_prepared_train_test_splits_dir_path: str,
             split_dir_path = osp.join(examination_dir_path, split_dir)
             results_split_dir_path = osp.join(results_examination_dir_path, split_dir)
             train_loop(split_dir_path, results_split_dir_path, **training_config)
-        # break
 
     # TODO: aggregate results, plots
 
 
 if __name__ == '__main__':
-    run_experiment(EXAMINATIONS_PREPARED_TRAIN_TEST_SPLITS_DIR_PATH, RESULTS_OUTPUT_DIR_PATH, CONFIG_TEMPLATE_PATH)
+    run_experiment()
