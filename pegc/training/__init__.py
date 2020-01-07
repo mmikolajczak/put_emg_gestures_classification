@@ -2,6 +2,8 @@ from typing import Callable, Any, Dict, Iterable
 import os
 import os.path as osp
 
+import numpy as np
+from sklearn.metrics import confusion_matrix, accuracy_score
 import torch
 from torch import nn
 from torchsummary import summary  # another extension, a'la keras model.summary funtion
@@ -21,7 +23,7 @@ def _validate(model: nn.Module, loss_fnc: Callable, val_gen: DataLoader, device:
     model.eval()
 
     loss_tracker = AverageMeter()
-    acc_tracker = AverageMeter()
+    y_true, y_pred = [], []
     with torch.no_grad():
         for X_batch, y_batch in val_gen:
             X_batch = X_batch.to(device)
@@ -30,9 +32,16 @@ def _validate(model: nn.Module, loss_fnc: Callable, val_gen: DataLoader, device:
             loss = loss_fnc(batch_pred, y_batch)
 
             loss_tracker.update(loss.item(), len(batch_pred))
-            acc_tracker.update((y_batch.argmax(dim=1) == batch_pred.argmax(dim=1)).sum().item() / len(batch_pred))
+            y_true.append(np.argmax(y_batch.cpu().numpy(), axis=1))
+            y_pred.append(np.argmax(batch_pred.cpu().numpy(), axis=1))
 
-    return {'val_loss': loss_tracker.avg, 'val_acc': acc_tracker.avg}
+    y_true = np.concatenate(y_true)
+    y_pred = np.concatenate(y_pred)
+
+    acc = accuracy_score(y_true, y_pred)
+    cm = confusion_matrix(y_true, y_pred)
+
+    return {'val_loss': loss_tracker.avg, 'val_acc': acc, 'cm': cm.tolist()}
 
 
 def _epoch_train(model: nn.Module, train_gen: DataLoader, device: Any, optimizer: Any, loss_fnc: Callable,
