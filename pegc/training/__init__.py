@@ -73,10 +73,11 @@ def _epoch_train(model: nn.Module, train_gen: DataLoader, device: Any, optimizer
 
 
 def train_loop(dataset_dir_path: str, results_dir_path: str, architecture: str, force_cpu: bool = False,
-               epochs: int = 100, batch_size: int = 256, shuffle: bool = True, base_feature_maps: int = 64,
-               use_mixup=True, alpha: float = 1, val_split_size: float = 0.15, base_lr: float = 1e-3,
-               max_lr: float = 1e-2, use_early_stopping: bool = True, early_stopping_patience: int = 15,
-               optimizer: str = 'radam', use_lookahead: bool = True) -> None:
+               epochs: int = 100, batch_size: int = 256, shuffle: bool = True, nb_res_blocks: int = 6,
+               res_block_per_expansion: int = 2, base_feature_maps: int = 16, use_mixup=True, alpha: float = 1,
+               val_split_size: float = 0.15, base_lr: float = 1e-4, max_lr: float = 1e-2,
+               use_early_stopping: bool = True, early_stopping_patience: int = 15, optimizer: str = 'radam',
+               use_lookahead: bool = True) -> None:
     architectures_lookup_table = {'resnet': Resnet1D}
     optimizers_lookup_table = {'adam': torch.optim.Adam, 'radam': RAdam}
     assert architecture in architectures_lookup_table, 'Specified model architecture unknown!'
@@ -85,8 +86,9 @@ def train_loop(dataset_dir_path: str, results_dir_path: str, architecture: str, 
     initialize_random_seeds(constants.RANDOM_SEED)
 
     # Create specified model.
-    model = architectures_lookup_table[architecture](constants.DATASET_FEATURES_SHAPE[0],
-                                                     base_feature_maps, constants.NB_DATASET_CLASSES).to(device)
+    model = architectures_lookup_table[architecture](constants.DATASET_FEATURES_SHAPE[0], constants.NB_DATASET_CLASSES,
+                                                     nb_res_blocks, res_block_per_expansion,
+                                                     base_feature_maps).to(device)
     summary(model, input_size=constants.DATASET_FEATURES_SHAPE)  # Shape without including batch.
 
     # Load train/test data (includes validation set preparation).

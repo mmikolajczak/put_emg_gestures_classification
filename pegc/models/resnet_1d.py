@@ -55,19 +55,27 @@ class Triple1DConvResBlock(nn.Module):
 
 class Resnet1D(nn.Module):
 
-    def __init__(self, input_channels, base_feature_maps: int, nb_classes: int):
+    def __init__(self, input_channels, nb_classes: int, nb_res_blocks: int, res_blocks_per_expansion: int,
+                 base_feature_maps: int):
         super(Resnet1D, self).__init__()
-        self.res_block_1 = Triple1DConvResBlock(input_channels, base_feature_maps)
-        self.res_block_2 = Triple1DConvResBlock(base_feature_maps, base_feature_maps * 2)
-        self.res_block_3 = Triple1DConvResBlock(base_feature_maps * 2, base_feature_maps * 2)
+        res_blocks = []
+        res_input_shape = input_channels
+        nb_out_feature_maps = base_feature_maps
+        for i in range(nb_res_blocks):
+            if (i + 1) % res_blocks_per_expansion == 0 and not i == nb_res_blocks - 1:
+                nb_out_feature_maps = nb_out_feature_maps * 2
+            cur_block = Triple1DConvResBlock(res_input_shape, nb_out_feature_maps)
+            res_blocks.append(cur_block)
+            res_input_shape = nb_out_feature_maps
+        self.res_blocks = nn.Sequential(*res_blocks)
         self.gap = GlobalAveragePooling1D()
-        self.dense = nn.Linear(base_feature_maps * 2, nb_classes)
+        self.dense = nn.Linear(nb_out_feature_maps, nb_classes)
         self.softmax = nn.LogSoftmax(dim=-1)
 
     def forward(self, x):
-        out = self.res_block_1(x)
-        out = self.res_block_2(out)
-        out = self.res_block_3(out)
+        out = x
+        for res_block in self.res_blocks:
+            out = res_block(out)
         out = self.gap(out)
         out = self.dense(out)
         out = self.softmax(out)
