@@ -138,6 +138,9 @@ def train_loop(dataset_dir_path: str, results_dir_path: str, architecture: str, 
                 cb.on_epoch_end(ep, epoch_stats)
     except EarlyStoppingSignal as e:
         print(e)
+        best_epoch = ep - callbacks[-1].patience
+        model.load_state_dict(
+            torch.load(osp.join(results_dir_path, f'ep_{best_epoch}_checkpoint.tar'))['model_state_dict'])
 
     # Check results on final test/holdout set:
     test_set_stats = _validate(model, loss_fnc, test_gen, device)
