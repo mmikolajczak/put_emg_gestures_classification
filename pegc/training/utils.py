@@ -9,7 +9,8 @@ from sklearn.model_selection import train_test_split
 import torch
 
 
-PUTEEGDataset = namedtuple('PUTEEGDATASET', ('X_train', 'y_train', 'X_val', 'y_val', 'X_test', 'y_test'))
+PUTEEGDataset = namedtuple('PUTEEGDATASET', ('X_train', 'y_train', 'X_val', 'y_val', 'X_test', 'y_test',
+                                             'class_weights'))
 
 
 def load_full_dataset(dataset_dir_path: str, create_val_subset: bool = True, val_size: float = 0.15,
@@ -22,13 +23,16 @@ def load_full_dataset(dataset_dir_path: str, create_val_subset: bool = True, val
     X_train = np.swapaxes(X_train, 1, 2)
     X_test = np.swapaxes(X_test, 1, 2)
 
+    class_shares = np.sum(y_train, axis=0) / len(y_train)
+    class_weights = 1 / class_shares
+    class_weights = class_weights / np.sum(class_weights)  # normalize to 0-1 range
     if create_val_subset:
         y_train_1dim = np.argmax(y_train, axis=1)
         X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, random_state=random_seed,
                                                           test_size=val_size, stratify=y_train_1dim)
-        dataset = PUTEEGDataset(X_train, y_train, X_val, y_val, X_test, y_test)
+        dataset = PUTEEGDataset(X_train, y_train, X_val, y_val, X_test, y_test, class_weights)
     else:
-        dataset = PUTEEGDataset(X_train, y_train, None, None, X_test, y_test)
+        dataset = PUTEEGDataset(X_train, y_train, None, None, X_test, y_test, class_weights)
 
     return dataset
 

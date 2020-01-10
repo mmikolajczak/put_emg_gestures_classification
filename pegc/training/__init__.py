@@ -119,7 +119,8 @@ def train_loop(dataset_dir_path: str, results_dir_path: str, architecture: str, 
                                        patience=early_stopping_patience))  # Important: early stopping must be last on the list!
 
     # Training itself.
-    loss_fnc = torch.nn.MultiLabelSoftMarginLoss(reduction='mean')
+    loss_fnc = torch.nn.MultiLabelSoftMarginLoss(reduction='mean',
+                                                 weight=torch.tensor(data.class_weights, dtype=torch.float32).to(device))
     metrics = []
     os.makedirs(results_dir_path, exist_ok=True)
 
