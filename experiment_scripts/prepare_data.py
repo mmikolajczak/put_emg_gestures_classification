@@ -24,6 +24,7 @@ from pegc.data_prep.utils import get_subjects_ids, prepare_dir_tree
 def prepare_data(orig_data_dir_path: str, raw_filtered_data_path: str, processed_data_dir: str,
                  processed_data_splits_dir: str, window_size: int = 1024, window_stride: int = 512) -> None:
     nb_workers = max(int(np.floor(psutil.virtual_memory()[1] / constants.MEM_REQ_PER_PROCESS)), 1)
+    nb_workers = min(nb_workers, os.cpu_count())  # Limit workers so that there is no more of them than actual available cores.
 
     # Denoise/filter data
     os.makedirs(raw_filtered_data_path, exist_ok=True)
