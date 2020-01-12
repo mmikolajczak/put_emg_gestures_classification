@@ -3,6 +3,7 @@ import os.path as osp
 
 import click
 import pandas as pd
+import matplotlib.pyplot as plt
 
 from pegc.training import train_loop
 from pegc.training.utils import load_json
@@ -45,7 +46,15 @@ def run_experiment(examinations_prepared_train_test_splits_dir_path: str,
     res_df = pd.DataFrame(final_eval_results, columns=['examination_id', 'split_name', 'val_loss', 'val_acc',
                                                        'test_loss', 'test_acc', 'test_cm'])
     res_df.to_csv(osp.join(results_output_dir_path, 'final_evaluations_aggregated.csv'), index=False)
-    # TODO: some plots?
+
+    # TODO: some (more) plots?
+    plt.boxplot([res_df['test_acc']])
+    plt.axhline(y=0.59, label='majority class')  # Baseline (mean majority class share – value is estimated, compute it precisely later).
+    # plt.title('Test set accs')
+    plt.legend(loc='upper right')
+    plt.ylabel('test set acc')
+    plt.xticks([])
+    plt.savefig(osp.join(results_output_dir_path, 'test_accs_boxplot.png'))
 
 
 if __name__ == '__main__':
