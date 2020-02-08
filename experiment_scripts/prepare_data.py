@@ -11,7 +11,6 @@ import click
 from pegc import constants
 from pegc.data_prep.processing_jobs import _prepare_single_subject_splits, _process_single_filtered_hdf5, \
     _denoise_filter_single_subject, _check_examination_splits_shapes_validity
-from pegc.data_prep.utils import get_subjects_ids, prepare_dir_tree
 
 
 @click.command()
@@ -33,8 +32,7 @@ def prepare_data(orig_data_dir_path: str, raw_filtered_data_path: str, processed
                                 for filename in tqdm(os.listdir(orig_data_dir_path)))
 
     # Group and preprocess raw (but filtered/denoised) signals for each subject.
-    put_emg_subjects_ids = get_subjects_ids(raw_filtered_data_path)
-    prepare_dir_tree(processed_data_dir, put_emg_subjects_ids)
+    os.makedirs(processed_data_dir, exist_ok=True)
     Parallel(n_jobs=nb_workers)(delayed(_process_single_filtered_hdf5)(raw_filtered_data_path, filename,
                                                                        processed_data_dir, window_size, window_stride)
                                 for filename in tqdm(os.listdir(raw_filtered_data_path)))

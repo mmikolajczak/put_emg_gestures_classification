@@ -7,7 +7,7 @@ import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
 from pegc import constants
-from pegc.data_prep.utils import get_subject_and_experiment_type_from_filename, to_one_hot_encoding
+from pegc.data_prep.utils import get_experiment_metadata_from_filename, to_one_hot_encoding
 import putemg_features
 
 
@@ -72,9 +72,9 @@ def _process_single_filtered_hdf5(raw_filtered_data_dir: str, filename: str, pro
     y = to_one_hot_encoding(y, constants.NB_DATASET_CLASSES)
 
     # save results
-    sub_id, exp_type = get_subject_and_experiment_type_from_filename(filename)
-    sub_dir_path = osp.join(processed_data_dir, sub_id)
-
+    sub_id, exp_type, exp_date = get_experiment_metadata_from_filename(filename)
+    sub_dir_path = osp.join(processed_data_dir, f'{sub_id}_{exp_date}')
+    os.makedirs(sub_dir_path, exist_ok=True)
     np.save(osp.join(sub_dir_path, f'{exp_type}_X.npy'), X)
     np.save(osp.join(sub_dir_path, f'{exp_type}_y.npy'), y)
 
@@ -82,8 +82,8 @@ def _process_single_filtered_hdf5(raw_filtered_data_dir: str, filename: str, pro
 def _prepare_single_subject_splits(processed_data_dir: str, processed_data_splits_dir: str,
                                    subject_dir: str) -> None:
     possible_splits = {'split_0': {'train': ('sequential', 'repeats_short'), 'test': 'repeats_long'},
-                   'split_1': {'train': ('sequential', 'repeats_long'), 'test': 'repeats_short'},
-                   'split_2': {'train': ('repeats_short', 'repeats_long'), 'test': 'sequential'}}
+                       'split_1': {'train': ('sequential', 'repeats_long'), 'test': 'repeats_short'},
+                       'split_2': {'train': ('repeats_short', 'repeats_long'), 'test': 'sequential'}}
     subject_dir_path = osp.join(processed_data_dir, subject_dir)
 
     # load all data once
