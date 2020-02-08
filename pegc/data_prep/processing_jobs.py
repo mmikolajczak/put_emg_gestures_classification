@@ -75,8 +75,8 @@ def _process_single_filtered_hdf5(raw_filtered_data_dir: str, filename: str, pro
     sub_id, exp_type, exp_date = get_experiment_metadata_from_filename(filename)
     sub_dir_path = osp.join(processed_data_dir, f'{sub_id}_{exp_date}')
     os.makedirs(sub_dir_path, exist_ok=True)
-    np.save(osp.join(sub_dir_path, f'{exp_type}_X.npy'), X)
-    np.save(osp.join(sub_dir_path, f'{exp_type}_y.npy'), y)
+    np.savez_compressed(osp.join(sub_dir_path, f'{exp_type}_X.npz'), X)
+    np.savez_compressed(osp.join(sub_dir_path, f'{exp_type}_y.npz'), y)
 
 
 def _prepare_single_subject_splits(processed_data_dir: str, processed_data_splits_dir: str,
@@ -89,8 +89,8 @@ def _prepare_single_subject_splits(processed_data_dir: str, processed_data_split
     # load all data once
     experiments_data = {}
     for exp_type in ('repeats_long', 'repeats_short', 'sequential'):
-        X = np.load(osp.join(subject_dir_path, f'{exp_type}_X.npy'))
-        y = np.load(osp.join(subject_dir_path, f'{exp_type}_y.npy'))
+        X = np.load(osp.join(subject_dir_path, f'{exp_type}_X.npz'))
+        y = np.load(osp.join(subject_dir_path, f'{exp_type}_y.npz'))
         experiments_data[exp_type] = {'X': X, 'y': y}
 
     splits_dst_dir_path = osp.join(processed_data_splits_dir, subject_dir)
@@ -124,10 +124,10 @@ def _prepare_single_subject_splits(processed_data_dir: str, processed_data_split
         cur_split_dst_dir_path = osp.join(splits_dst_dir_path, split_name)
         os.makedirs(cur_split_dst_dir_path, exist_ok=True)
 
-        np.save(osp.join(cur_split_dst_dir_path, 'X_train.npy'), X_train)
-        np.save(osp.join(cur_split_dst_dir_path, 'y_train.npy'), y_train)
-        np.save(osp.join(cur_split_dst_dir_path, 'X_test.npy'), X_test)
-        np.save(osp.join(cur_split_dst_dir_path, 'y_test.npy'), y_test)
+        np.savez_compressed(osp.join(cur_split_dst_dir_path, 'X_train.npz'), X_train)
+        np.savez_compressed(osp.join(cur_split_dst_dir_path, 'y_train.npz'), y_train)
+        np.savez_compressed(osp.join(cur_split_dst_dir_path, 'X_test.npz'), X_test)
+        np.savez_compressed(osp.join(cur_split_dst_dir_path, 'y_test.npz'), y_test)
 
 
 def _check_examination_splits_shapes_validity(examination_dir_path: str) -> Tuple[int, bool]:
@@ -136,10 +136,10 @@ def _check_examination_splits_shapes_validity(examination_dir_path: str) -> Tupl
     shapes_valid = True
     for i in range(3):
         split_dir_path = osp.join(examination_dir_path, f'split_{i}')
-        X_train = np.load(osp.join(split_dir_path, 'X_train.npy'))
-        X_test = np.load(osp.join(split_dir_path, 'X_test.npy'))
-        y_train = np.load(osp.join(split_dir_path, 'y_train.npy'))
-        y_test = np.load(osp.join(split_dir_path, 'y_test.npy'))
+        X_train = np.load(osp.join(split_dir_path, 'X_train.npz'))
+        X_test = np.load(osp.join(split_dir_path, 'X_test.npz'))
+        y_train = np.load(osp.join(split_dir_path, 'y_train.npz'))
+        y_test = np.load(osp.join(split_dir_path, 'y_test.npz'))
         if (len(X_train) != len(y_train) or len(X_test) != len(y_test) or
                 y_train.shape[1] != constants.NB_DATASET_CLASSES or y_test.shape[1] != constants.NB_DATASET_CLASSES):
             shapes_valid = False

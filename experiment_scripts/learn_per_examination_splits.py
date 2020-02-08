@@ -98,6 +98,8 @@ def run_experiment(examinations_prepared_train_test_splits_dir_path: str,
     plt.xticks([])
     plt.savefig(osp.join(results_output_dir_path, 'test_accs_boxplot.png'))
 
+    # TODO: once the results are available combine confusion matrices here.
+
 
 if __name__ == '__main__':
     run_experiment()

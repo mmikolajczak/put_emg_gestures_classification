@@ -15,10 +15,10 @@ PUTEEGDataset = namedtuple('PUTEEGDATASET', ('X_train', 'y_train', 'X_val', 'y_v
 
 def load_full_dataset(dataset_dir_path: str, create_val_subset: bool = True, val_size: float = 0.15,
                       random_seed: int = 42) -> PUTEEGDataset:
-    X_train = np.load(osp.join(dataset_dir_path, 'X_train.npy')).astype(np.float32)
-    y_train = np.load(osp.join(dataset_dir_path, 'y_train.npy')).astype(np.float32)
-    X_test = np.load(osp.join(dataset_dir_path, 'X_test.npy')).astype(np.float32)
-    y_test = np.load(osp.join(dataset_dir_path, 'y_test.npy')).astype(np.float32)
+    X_train = np.load(osp.join(dataset_dir_path, 'X_train.npz')).astype(np.float32)
+    y_train = np.load(osp.join(dataset_dir_path, 'y_train.npz')).astype(np.float32)
+    X_test = np.load(osp.join(dataset_dir_path, 'X_test.npz')).astype(np.float32)
+    y_test = np.load(osp.join(dataset_dir_path, 'y_test.npz')).astype(np.float32)
     # swap axes as pytorch is channels first
     X_train = np.swapaxes(X_train, 1, 2)
     X_test = np.swapaxes(X_test, 1, 2)
