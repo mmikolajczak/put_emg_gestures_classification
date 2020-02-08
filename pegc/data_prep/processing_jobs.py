@@ -1,5 +1,6 @@
 import os
 import os.path as osp
+import shutil
 from typing import Tuple
 
 import numpy as np
@@ -38,7 +39,7 @@ def _calculate_single_subject_features(denoised_hdf5_path: str, features_dir_pat
 
 
 def _process_single_filtered_hdf5(raw_filtered_data_dir: str, filename: str, processed_data_dir: str,
-                                  window_size: int, window_stride: int) -> None:
+                                  window_size: int, window_stride: int, clean_intermediate_steps: bool) -> None:
     df = pd.read_hdf(osp.join(raw_filtered_data_dir, filename))
     features_columns = [col for col in df.columns if col.startswith('EMG_')]
     df = df[df['TRAJ_GT'] != -1]  # drop invalid gestures
@@ -78,9 +79,12 @@ def _process_single_filtered_hdf5(raw_filtered_data_dir: str, filename: str, pro
     np.savez_compressed(osp.join(sub_dir_path, f'{exp_type}_X.npz'), X)
     np.savez_compressed(osp.join(sub_dir_path, f'{exp_type}_y.npz'), y)
 
+    if clean_intermediate_steps:
+        os.remove(osp.join(raw_filtered_data_dir, filename))
+
 
 def _prepare_single_subject_splits(processed_data_dir: str, processed_data_splits_dir: str,
-                                   subject_dir: str) -> None:
+                                   subject_dir: str, clean_intermediate_steps: bool) -> None:
     possible_splits = {'split_0': {'train': ('sequential', 'repeats_short'), 'test': 'repeats_long'},
                        'split_1': {'train': ('sequential', 'repeats_long'), 'test': 'repeats_short'},
                        'split_2': {'train': ('repeats_short', 'repeats_long'), 'test': 'sequential'}}
@@ -128,6 +132,9 @@ def _prepare_single_subject_splits(processed_data_dir: str, processed_data_split
         np.savez_compressed(osp.join(cur_split_dst_dir_path, 'y_train.npz'), y_train)
         np.savez_compressed(osp.join(cur_split_dst_dir_path, 'X_test.npz'), X_test)
         np.savez_compressed(osp.join(cur_split_dst_dir_path, 'y_test.npz'), y_test)
+
+    if clean_intermediate_steps:
+        shutil.rmtree(subject_dir_path)
 
 
 def _check_examination_splits_shapes_validity(examination_dir_path: str) -> Tuple[int, bool]:
